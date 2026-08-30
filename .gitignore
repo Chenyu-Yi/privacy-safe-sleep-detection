@@ -1,0 +1,12 @@
+*.ipynb
+*.py
+*.csv
+*.csv.gz
+*.zip
+data/
+notebooks/
+__pycache__/
+.ipynb_checkpoints/
+.DS_Store
+AI_PROJECT_PROMPT.md
+AGENTS.md
