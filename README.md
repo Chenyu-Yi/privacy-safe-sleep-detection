@@ -96,6 +96,14 @@ needed to understand the analysis.
 ### Univariate Analysis
 
 The sleep response contains **202,213 not-sleeping observations**, **83,055
+
+<iframe
+  src="assets/sleep_distribution.html"
+  width="100%"
+  height="500"
+  frameborder="0">
+</iframe>
+
 sleeping observations**, and **92,078 missing responses**. Not-sleeping records
 are the majority, sleeping records are the minority, and about one quarter of
 the response values are missing. Accuracy alone may therefore be misleading
@@ -105,14 +113,12 @@ Acceleration standard deviation is strongly right-skewed: most values are
 small, with a long tail of high-motion observations. A log scale makes this
 distribution easier to read without treating the extreme values as invalid.
 
-<div class="report-todo" markdown="1">
-
-**Required interactive figure:** Export at least one univariate Plotly figure
-with `include_plotlyjs='cdn'`, place the HTML file in `assets/`, and embed it
-here. The sleep-label distribution or acceleration-variability histogram from
-the notebook can satisfy this requirement.
-
-</div>
+<iframe
+  src="assets/acceleration_distribution.html"
+  width="100%"
+  height="500"
+  frameborder="0">
+</iframe>
 
 ### Bivariate Analysis
 
@@ -120,23 +126,30 @@ The conditional sleep rate is highest from midnight through early morning and
 much lower during the day, although local time does not perfectly determine
 sleep. Acceleration variability also differs by reported state:
 
+<iframe
+  src="assets/hourly_sleep_rate.html"
+  width="100%"
+  height="500"
+  frameborder="0">
+</iframe>
+
 | Sleep status | Records | Mean acceleration SD | Median acceleration SD |
 |---|---:|---:|---:|
 | Not Sleeping | 202,200 | 0.049183 | 0.004559 |
 | Sleeping | 83,054 | 0.005734 | 0.001741 |
 
+
 Both the mean and median are lower during reported sleep. The distributions
 still overlap, so acceleration alone cannot perfectly distinguish the two
 states.
 
-<div class="report-todo" markdown="1">
+<iframe
+  src="assets/acceleration_by_sleep.html"
+  width="100%"
+  height="550"
+  frameborder="0">
+</iframe>
 
-**Required interactive figure:** Export and embed at least one bivariate
-Plotly figure. The hourly sleep-rate line plot or the acceleration-by-sleep
-box plot from the notebook can satisfy this requirement. Keep the figure title,
-axis labels, and interpretation with the plot.
-
-</div>
 
 ### Interesting Aggregates
 
@@ -183,12 +196,13 @@ night period. It does not provide sufficient evidence of dependence on the
 narrower 9 PM–3 AM indicator. Failing to reject the second null does not prove
 independence or establish that the response is MCAR.
 
-<div class="report-todo" markdown="1">
+<iframe
+  src="assets/missingness_permutation.html"
+  width="100%"
+  height="500"
+  frameborder="0">
+</iframe>
 
-**Required interactive figure:** Export and embed the Plotly permutation
-distribution for the `is_night` test, including the observed TVD marker.
-
-</div>
 
 ## Hypothesis Testing
 
@@ -213,6 +227,13 @@ The observed data provide strong evidence that mean phone acceleration
 variability is lower during reported sleep. Because the data are observational,
 this result identifies an association and does not establish that sleep causes
 the difference.
+
+<iframe
+  src="assets/hypothesis_test.html"
+  width="100%"
+  height="500"
+  frameborder="0">
+</iframe>
 
 ## Framing a Prediction Problem
 
