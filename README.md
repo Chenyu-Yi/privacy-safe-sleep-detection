@@ -6,13 +6,9 @@ This project investigates whether privacy-preserving smartphone and
 smartwatch measurements can distinguish between user-reported sleeping
 and awake periods using the UCSD ExtraSensory dataset.
 
-<div class="checkpoint-status" markdown="1">
-
-**Checkpoint 2 status:** The hypothesis test and baseline model are complete.
-The final model and fairness analysis are planned below and will be updated
-after the remaining analysis is finished.
-
-</div>
+The full analysis is complete. The final random-forest model is evaluated on
+participants who were not seen during training, followed by a permutation-based
+fairness analysis comparing daytime and nighttime sleep recognition.
 
 <nav class="report-nav" aria-label="Report sections">
   <a href="#introduction">Introduction</a>
@@ -83,19 +79,18 @@ steps were then applied:
 
 The cleaned dataset still contains **377,346 rows**. Cleaning changed the
 representation of time and removed an irrelevant sparse column, but it did not
-discard observations based on the response.
+discard observations based on the response. A compact view of the cleaned data
+is shown below; user identifiers remain anonymized.
 
-<div class="report-todo" markdown="1">
-
-**Final-report item — cleaned DataFrame head:** Add a compact, privacy-reviewed
-Markdown table showing the head of the cleaned DataFrame and only the columns
-needed to understand the analysis.
-
-</div>
+| User | Local datetime | Sleeping | Acceleration SD | App active | Hour | Night |
+|---|---|---:|---:|---:|---:|---:|
+| No1 | 2015-11-05 14:24:57-08:00 | 0 | 0.040597 | 0 | 14 | 0 |
+| No1 | 2015-11-05 14:25:57-08:00 | 0 | 0.006165 | 0 | 14 | 0 |
+| No1 | 2015-11-05 14:26:57-08:00 | 0 | 0.006302 | 0 | 14 | 0 |
+| No1 | 2015-11-05 14:28:07-08:00 | 0 | 0.004767 | 0 | 14 | 0 |
+| No1 | 2015-11-05 14:29:08-08:00 | 0 | 0.005415 | 0 | 14 | 0 |
 
 ### Univariate Analysis
-
-The sleep response contains **202,213 not-sleeping observations**, **83,055
 
 <iframe
   src="assets/sleep_distribution.html"
@@ -104,6 +99,7 @@ The sleep response contains **202,213 not-sleeping observations**, **83,055
   frameborder="0">
 </iframe>
 
+The sleep response contains **202,213 not-sleeping observations**, **83,055
 sleeping observations**, and **92,078 missing responses**. Not-sleeping records
 are the majority, sleeping records are the minority, and about one quarter of
 the response values are missing. Accuracy alone may therefore be misleading
@@ -284,56 +280,80 @@ relationship between 11 PM and midnight, and only one motion summary is used.
 
 ## Final Model
 
-The final model will preserve the same training and test users. Model selection
-will use group-aware cross-validation on the training users only, with the test
-users evaluated once after the model and hyperparameters are fixed.
+The final model preserves exactly the same training and test users as the
+baseline. It is a **random forest with 120 trees**, selected because it can
+capture nonlinear interactions among time, movement, and phone state while
+averaging many decision trees for more stable predictions.
 
-Planned improvements include:
+Four features were engineered for reasons tied to the data-generating process:
 
-1. Add `sin(2π × hour / 24)` and `cos(2π × hour / 24)` so the model represents
-   time cyclically.
-2. Add `log1p(raw_acc:magnitude_stats:std)` to reduce strong right skew while
-   preserving the order of movement levels.
-3. Evaluate gyroscope variability and privacy-conscious battery or screen-state
-   features that are available at prediction time.
-4. Compare a decision tree with a random forest.
-5. Tune decision-tree `max_depth` and random-forest `n_estimators` and
-   `max_depth` using `GridSearchCV` with group-aware folds.
+1. `hour_sin` and `hour_cos` represent the 24-hour cycle, so 11 PM and midnight
+   are close rather than opposite ends of a numeric scale.
+2. `log_acc_std` reduces the strong right skew in acceleration variability and
+   preserves distinctions among low-motion observations relevant to sleep.
+3. `log_gyro_std` supplies a second measure of phone movement and addresses its
+   right-skewed distribution.
 
-<div class="report-todo" markdown="1">
+App-active state, battery level, and screen brightness are retained as
+privacy-conscious indicators of phone use. Feature engineering, median
+imputation, and classification are contained in a single sklearn Pipeline.
 
-**Complete after model selection:** State the final algorithm, every added
-feature and its data-generating-process justification, the selected
-hyperparameters, the tuning method, the unseen-user test performance, and the
-improvement over the baseline. Optionally embed a Plotly confusion matrix or
-other performance visualization.
+Before tuning, we chose to search `max_depth`, which controls tree complexity,
+and `min_samples_leaf`, which prevents rules based on very small groups of
+records. `GridSearchCV` used three-fold `GroupKFold` cross-validation on the
+training users and sleeping-class F1 as its scoring metric. The best settings
+were **`max_depth=8`** and **`min_samples_leaf=50`**, with mean validation F1 of
+**0.816**.
 
-</div>
+| Model | Accuracy | Precision for sleeping | Recall for sleeping | F1 for sleeping |
+|---|---:|---:|---:|---:|
+| Baseline decision tree | 0.864 | 0.695 | 0.827 | 0.755 |
+| Final random forest | **0.874** | **0.715** | **0.836** | **0.771** |
+
+The final model improves the primary metric from 0.755 to 0.771 on the unchanged
+unseen-user test set. Precision, recall, and accuracy also improve.
+
+<iframe
+  src="assets/final_confusion_matrix.html"
+  width="100%"
+  height="520"
+  frameborder="0">
+</iframe>
 
 ## Fairness Analysis
 
-The planned groups are **night observations** (Group X) and **day observations**
-(Group Y) in the unchanged test set. Recall for sleeping is the evaluation
-metric because failing to identify actual sleep is the error of interest.
+We test whether the final model performs worse at recognizing actual sleep
+during the **day** than during the **night** in the unchanged test set. Night is
+defined as 9 PM through 5:59 AM. This is meaningful because a model that mainly
+learns conventional nighttime schedules may miss naps or sleep among users with
+nontraditional schedules. Recall for sleeping is the evaluation metric because
+failing to identify actual sleep is the error of interest.
 
-- **Null hypothesis:** The final model is fair with respect to time period. Its
-  recall for sleeping is approximately equal at night and during the day, and
-  any observed difference is due to random chance.
+- **Null hypothesis:** The final model's recall for sleeping is the same during
+  night and day; the observed difference is due to random assignment of the
+  time-period labels.
 - **Alternative hypothesis:** The final model's recall for sleeping is lower
   during the day than at night.
 - **Test statistic:** Night recall minus day recall.
-- **Planned method:** A one-sided permutation test at **α = 0.05** that shuffles
+- **Method:** A one-sided permutation test with 5,000 repetitions at
+  **α = 0.05** that shuffles
   the day/night group labels while keeping the fitted model, true labels, and
   predictions fixed.
 
-<div class="report-todo" markdown="1">
+The model's sleeping-class recall is **0.907 at night** and **0.632 during the
+day**, giving an observed night-minus-day difference of **0.276**. The one-sided
+permutation p-value is approximately **0.0002**. Because this is below 0.05, we
+reject the null hypothesis. The data provide strong evidence that this model
+performs worse at recognizing actual daytime sleep than nighttime sleep. This
+identifies a specific recall disparity for these time-period groups; it does not
+establish that the model is unfair in every possible sense.
 
-**Complete after the final model is fixed:** Report both group recalls, the
-observed difference, permutation p-value, decision, and conclusion. The final
-model must not be retrained or modified during this analysis. An interactive
-Plotly permutation distribution may also be embedded here.
-
-</div>
+<iframe
+  src="assets/fairness_permutation.html"
+  width="100%"
+  height="500"
+  frameborder="0">
+</iframe>
 
 ---
 
