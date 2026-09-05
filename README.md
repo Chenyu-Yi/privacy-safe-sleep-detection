@@ -210,9 +210,3 @@ non-significant result with only 11 test users is not proof of fairness. The stu
 also geographically and occupationally narrow, so other people and devices must be evaluated
 before deployment. This classifier recognizes self-reported context; it is not a medical sleep
 diagnosis.
-
----
-
-*Analysis techniques are limited to the supplied DSC 80 lecture material. Requirements follow
-the [official final-project rubric](https://dsc80.com/proj04/); dataset interpretation follows
-the assigned ExtraSensory materials.*
