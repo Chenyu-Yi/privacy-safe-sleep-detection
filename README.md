@@ -92,16 +92,24 @@ claim follows the label-generating process, not just a pattern in the table. Not
 logs, live-versus-retrospective entry flags, screen events, and research-grade actigraphy could
 help explain the mechanism and make it MAR conditional on observed information.
 
-We also ran two lecture-style permutation tests comparing categorical distributions with TVD.
-Label missingness depends on local period: observed TVD **0.0713**, (p=0.0010). At
-\(\alpha=0.05\), we reject independence; for example, missingness is 19.5% at night and 28.8%
-in the evening.
+We also ran two permutation tests at \(\alpha=0.05\). For each test, the null says the
+distribution of an observed time feature is the same when the sleep label is missing and when
+it is recorded; the alternative says those distributions differ. Total variation distance
+(TVD) is appropriate because both comparison features are categorical. Under the null, we
+shuffle the missing/not-missing indicator while leaving the time feature fixed.
+
+For local period, the observed TVD is **0.0713** with **p=0.0010**, so we reject independence.
+The difference is also practically visible: missingness rises from 19.5% at night to 28.8% in
+the evening. This establishes an association with observed time, not the reason labels are
+missing and not an exclusively MAR mechanism.
 
 <iframe src="assets/missingness-permutation.html" width="100%" height="520" frameborder="0"></iframe>
 
-As a negative control, missingness does not appear related to whether a window begins in an even
-or odd local minute: TVD **0.0002**, (p=0.9201). We fail to reject this second null. Dependence
-on observed time is evidence consistent with MAR, but it cannot rule out the MNAR mechanism.
+As a negative control, we tested whether a window begins in an even or odd local minute, a
+distinction with no plausible connection to self-reporting. Its TVD is **0.0002** with
+**p=0.9201**, so we fail to reject independence. This is not proof of independence; it means
+this test found no evidence of a relationship. The two results together show why missingness
+must be assessed one observed variable at a time, and neither rules out the MNAR mechanism.
 
 ## Hypothesis Testing
 
@@ -141,31 +149,45 @@ leakage, `train_test_split` was applied to participant IDs: 42 users train the m
 ## Baseline Model
 
 The baseline is one scikit-learn `Pipeline`: median imputation followed by a depth-5
-`DecisionTreeClassifier`. It uses two original quantitative features—mean and standard deviation
-of phone acceleration magnitude—so no categorical encoding is needed. The imputation medians
-are learned from training users and reused unchanged for unseen users.
+`DecisionTreeClassifier`. It uses two original quantitative features. Mean phone acceleration
+magnitude describes the device's overall acceleration level, while its standard deviation
+captures movement within the 20-second window. Both can help distinguish motion from stillness,
+but neither reveals whether a stationary phone is beside a sleeping or awake person. No
+categorical encoding is needed. The imputation medians are learned from training users and
+reused unchanged for unseen users.
 
 | Data | Accuracy | Precision | Recall | F1 |
 |---|---:|---:|---:|---:|
 | Training users | 0.756 | 0.572 | 0.454 | 0.506 |
 | Unseen test users | 0.718 | 0.585 | 0.594 | **0.590** |
 
-This beats an always-awake rule in usefulness, but motion alone is incomplete: a sleeping
-person's phone may rest on a nightstand, while an awake person's unused phone can be equally still.
+An always-awake rule would have F1 0 and approximately 0.659 accuracy on these test users. The
+baseline is better, but **it is not good enough**: recall 0.594 means it misses about 40.6% of
+sleeping windows, while precision 0.585 means about 41.5% of its sleep predictions are false
+alarms. Its higher test than training F1 reflects differences between the held-out people, not
+evidence that the test set was used for fitting. Motion alone is incomplete: a sleeping person's
+phone may rest on a nightstand, while an awake person's unused phone can be equally still.
 
 ## Final Model
 
 The final single pipeline retains the baseline inputs and adds features motivated before tuning:
 
 - sine and cosine of local hour, preserving the cyclic relationship between 11 PM and midnight;
-- phone and watch interquartile motion ranges (`p75 - p25`), with watch mG converted to G;
-- a watch-minus-phone motion contrast and phone coefficient of variation;
-- phone/watch spectral entropy, battery level, and binary app-state indicators;
+- phone and watch interquartile motion ranges (`p75 - p25`), which summarize the typical spread
+  without letting brief extreme movement dominate, with watch mG converted to G;
+- a watch-minus-phone motion contrast, which can separate a moving wrist from a phone resting on
+  a surface, and phone coefficient of variation, which scales movement by its baseline magnitude;
+- phone/watch spectral entropy to represent how regular or irregular the motion is, plus battery
+  level and binary app-state indicators as passive evidence of device use;
 - median imputation with missingness indicators, followed by a `RandomForestClassifier`.
 
-The feature function is inside a `FunctionTransformer`, so the same transformations are applied
-during training, cross-validation, and prediction. Trees do not require standardization because
-rescaling does not change the ordering used for their splits.
+Missingness indicators matter because watch availability varies across people; replacing a
+missing value with the median alone would erase that information. The feature function is inside
+a `FunctionTransformer`, so the same transformations are applied during training,
+cross-validation, and prediction. A random forest is suitable because sleep can depend on
+nonlinear combinations—for example, low motion has a different meaning at 3 AM than at 3 PM—and
+averaging many trees is more stable than relying on one tree. Trees do not require standardization
+because rescaling does not change the ordering used for their splits.
 
 Before fitting, we chose `max_depth` for tuning because shallow trees can underfit and unrestricted
 trees can overfit. Four participant-preserving training folds searched `[4, 6, 8, 10, 12, 16]`
@@ -177,9 +199,13 @@ then refit the 60-tree forest on all training users.
 | Training users | 0.506 | 0.851 | +0.345 |
 | Unseen test users | **0.590** | **0.846** | **+0.257** |
 
-Final unseen-user accuracy is 0.903, precision is 0.918, and recall is 0.785. Similar training
-and test F1 suggest depth restriction controlled variance, while the large improvement on the
-unchanged test users shows that the engineered signals generalize beyond the two-feature baseline.
+Final unseen-user accuracy is 0.903, precision is 0.918, and recall is 0.785. The F1 increase of
+0.257 is about a 43.6% improvement relative to the baseline. The gains are consistent with the
+data-generating story: clock features capture daily rhythm, watch motion helps when the phone is
+resting separately from its owner, and missingness indicators retain sensor-availability context.
+Similar training and test F1 suggest depth restriction controlled variance. These metrics still
+apply only to windows with recorded sleep labels; because label missingness may be MNAR, they do
+not guarantee equal performance on unlabeled windows.
 
 <iframe src="assets/model-confusion.html" width="100%" height="520" frameborder="0"></iframe>
 
