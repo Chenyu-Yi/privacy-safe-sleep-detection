@@ -1,7 +1,3 @@
----
-title: "Stillness Has a Rhythm"
----
-
 # Stillness Has a Rhythm
 
 ### Recognizing Sleep In the Wild
