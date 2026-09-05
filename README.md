@@ -1,7 +1,3 @@
-# Stillness Has a Rhythm
-
-### Recognizing Sleep In the Wild
-
 **By Chenyu Yi and Pingzhang Xu**
 
 Can an everyday phone and watch recognize sleep without listening to audio or tracking absolute
@@ -16,11 +12,11 @@ with context labels that participants self-reported. The archive contains **377,
 windows** across 60 anonymized users; **285,268 windows** have an observed sleeping label,
 including 83,055 labeled sleeping.
 
-Our central question is: **When participants report sleeping, how does device motion change,
-and how accurately can low-privacy motion, phone-state, battery, and time features recognize
-sleep for a completely unseen user?** Sleep recognition could support health monitoring, but
-the in-the-wild setting is difficult: phones move independently of their owners, sensor
-availability varies, and self-reports are incomplete.
+Our central question for the exploratory and inferential analysis is: **When participants report
+sleeping, how does device motion change?** Sleep recognition could support health monitoring,
+but the in-the-wild setting is difficult: phones move independently of their owners, sensor
+availability varies, and self-reports are incomplete. Later, we ask whether low-privacy motion,
+phone-state, battery, and time features can recognize sleep for a completely unseen user.
 
 Relevant columns include:
 
@@ -44,7 +40,10 @@ We loaded the 60 compressed user files directly, selected relevant variables, an
 anonymized UUID from its filename. We renamed long keys while retaining units, converted Unix
 timestamps to timezone-aware San Diego local time, verified that observed sleeping labels were
 only 0 or 1, and converted invalid infinities to missing values. Sensor and label gaps were kept
-because missingness is part of the mobile-telemetry data-generating process.
+because missingness is part of the mobile-telemetry data-generating process. Analyses that need
+the sleep response, including hypothesis testing and supervised modeling, use only windows with
+an observed sleep label; missing-label windows are retained when assessing the missingness
+mechanism itself.
 
 Here is the head of the cleaned, narrow display table:
 
@@ -86,13 +85,14 @@ variability is in mG, so the two raw magnitudes should not be compared directly.
 ## Assessment of Missingness
 
 The sleeping label is missing in 92,078 windows (24.4%). We believe it is plausibly **MNAR**:
-whether a label is absent may depend on the unobserved true state because a sleeping participant
-cannot answer a prompt in real time, while a busy awake participant may also ignore it. This
-claim follows the label-generating process, not just a pattern in the table. Notification-open
-logs, live-versus-retrospective entry flags, screen events, and research-grade actigraphy could
-help explain the mechanism and make it MAR conditional on observed information.
+whether a label is absent may depend on the unobserved true state itself. A participant cannot
+actively report while asleep and may need to label that period retrospectively after waking,
+while a busy awake participant may also ignore a prompt. This claim follows the label-generating
+process, not just a pattern in the table. Notification-open logs, live-versus-retrospective entry
+flags, screen events, and research-grade actigraphy could help explain the mechanism and make it
+MAR conditional on observed information.
 
-We also ran two permutation tests at \(\alpha=0.05\). For each test, the null says the
+We also ran two permutation tests at **α = 0.05**. For each test, the null says the
 distribution of an observed time feature is the same when the sleep label is missing and when
 it is recorded; the alternative says those distributions differ. Total variation distance
 (TVD) is appropriate because both comparison features are categorical. Under the null, we
@@ -123,11 +123,11 @@ within participants.
 - **Alternative hypothesis:** Mean phone acceleration variability is lower during reported
   sleep, so the awake-minus-sleep difference is positive.
 - **Test statistic:** Participant-average of `mean awake phone SD - mean sleeping phone SD`, in G.
-- **Significance level:** \(\alpha=0.05\).
+- **Significance level:** α = 0.05.
 
 Across 53 participants with both states, mean motion SD is 0.0502 G while awake and 0.0063 G
 while sleeping. The observed participant-average difference is **0.0439 G** with
-**\(p=0.00010\)**. We reject the null: there is strong evidence of lower phone-motion variability
+**p = 0.00010**. We reject the null: there is strong evidence of lower phone-motion variability
 during reported sleep. This observational association does not establish causation or prove
 that a still phone means its owner is asleep.
 
@@ -142,9 +142,10 @@ and location are excluded.
 
 The primary metric is **F1**, the harmonic mean of precision and recall. Sleep is the minority
 class, so accuracy can favor the more common awake class. Precision alone ignores missed sleep;
-recall alone ignores false alarms; F1 penalizes both. To test generalization without participant
-leakage, `train_test_split` was applied to participant IDs: 42 users train the models and all
-66,113 test windows come from 11 completely unseen users.
+recall alone ignores false alarms; F1 penalizes both. The prediction analysis uses the same 53
+participants with observed examples of both awake and sleeping states described above. To test
+generalization without participant leakage, `train_test_split` was applied to participant IDs:
+42 users train the models and all 66,113 test windows come from 11 completely unseen users.
 
 ## Baseline Model
 
@@ -216,12 +217,14 @@ coverage below versus at/above the test-user median of 0.774.
 
 - **Group X:** five lower-watch-coverage test participants.
 - **Group Y:** six higher-watch-coverage test participants.
-- **Metric:** recall, the proportion of truly sleeping windows recognized as sleeping.
+- **Metric:** recall, the proportion of truly sleeping windows recognized as sleeping. Recall is
+  appropriate because the fairness concern is whether lower watch coverage causes the model to
+  miss a larger share of true sleeping periods.
 - **Null hypothesis:** The model is fair with respect to watch coverage; the population recalls
   are equal and participant group labels are exchangeable.
 - **Alternative hypothesis:** Recall is lower for lower-watch-coverage participants.
 - **Test statistic:** `recall(higher) - recall(lower)`; large positive values favor the alternative.
-- **Significance level:** \(\alpha=0.05\).
+- **Significance level:** α = 0.05.
 
 We did not refit the model. We shuffled coverage labels across the 11 test participants, keeping
 each person's repeated windows together. Recall is **0.715** for lower-coverage participants and
